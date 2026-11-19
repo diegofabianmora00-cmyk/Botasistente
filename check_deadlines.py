@@ -57,6 +57,10 @@ def to_datetime(value) -> datetime | None:
     return None
 
 
+def format_time_12h(dt: datetime) -> str:
+    return dt.strftime("%I:%M %p").lstrip("0")
+
+
 def get_due_info(component):
     for field in ("DUE", "DTEND", "DTSTART"):
         val = component.get(field)
@@ -69,7 +73,7 @@ def get_due_info(component):
         if isinstance(raw, datetime):
             local = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
             tzname = raw.tzname() or "UTC"
-            display = raw.strftime(f"%Y-%m-%d %H:%M {tzname}")
+            display = f"{raw.strftime('%Y-%m-%d')} {format_time_12h(raw)} {tzname}"
             return due_utc, local, display, "datetime"
         if hasattr(raw, "year") and hasattr(raw, "month") and hasattr(raw, "day"):
             local = datetime(raw.year, raw.month, raw.day, tzinfo=timezone.utc)
@@ -136,7 +140,41 @@ def get_course(component) -> str:
     return normalize_course(raw)
 
 
-# format_due ya no es necesario; se usa display desde get_due_info
+def is_completed(component) -> bool:
+    status = str(component.get("STATUS") or "").strip().upper()
+    if status in {"CANCELLED", "COMPLETED"}:
+        return True
+    if component.get("COMPLETED") or component.get("PERCENT-COMPLETE") is not None:
+        pc = component.get("PERCENT-COMPLETE")
+        if component.get("COMPLETED"):
+            return True
+        try:
+            if pc is not None and int(str(pc)) >= 100:
+                return True
+        except Exception:
+            pass
+    summary = str(component.get("SUMMARY") or "")
+    description = str(component.get("DESCRIPTION") or "")
+    text = f"{summary} {description}".lower()
+    # evitar falsos positivos como "debería ser completado"
+    if re.search(r"\b(deber[ií]a|should be)\b", text):
+        pass
+    else:
+        patterns = [
+            r"\by[ao] entregad[oa]\b",
+            r"\bentregado\b",
+            r"\bentregada\b",
+            r"\bsubmitted\b",
+            r"\bcompleted\b",
+            r"\bcompletado\b",
+            r"\bcompletada\b",
+            r"\bfinalizado\b",
+            r"\bfinalizada\b",
+        ]
+        for p in patterns:
+            if re.search(p, text):
+                return True
+    return False
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -177,12 +215,16 @@ def main() -> int:
             continue
 
         upcoming += 1
+        summary = str(component.get("SUMMARY") or "(Sin título)").strip()
+
+        if is_completed(component):
+            print(f"Omitido (entregado/completado): '{summary}'")
+            continue
+
         uid = str(component.get("UID") or "").strip()
         if not uid:
-            summary = str(component.get("SUMMARY") or "evento").strip()
             uid = f"no-uid::{summary}::{due_utc.isoformat()}"
 
-        summary = str(component.get("SUMMARY") or "(Sin título)").strip()
         course = get_course(component)
 
         tz = due_local.tzinfo or timezone.utc
@@ -192,7 +234,7 @@ def main() -> int:
 
         if due_day == today:
             label = "hoy"
-            hora = due_local.strftime("%H:%M") if kind == "datetime" else "todo el día"
+            hora = format_time_12h(due_local) if kind == "datetime" else "todo el día"
             msg = (
                 f"⏰ Recordatorio\n"
                 f"Tarea: {summary}\n"
