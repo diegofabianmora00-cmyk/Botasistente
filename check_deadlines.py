@@ -8,10 +8,6 @@ import requests
 from icalendar import Calendar
 
 SENT_FILE = Path("sent.json")
-WINDOWS = {
-    "24h": (23 * 60 + 30, 24 * 60 + 30),  # minutes remaining
-    "3h": (2 * 60 + 30, 3 * 60 + 30),
-}
 
 
 def env(name: str) -> str:
@@ -60,13 +56,25 @@ def to_datetime(value) -> datetime | None:
     return None
 
 
-def get_due(component) -> datetime | None:
+def get_due_info(component):
     for field in ("DUE", "DTEND", "DTSTART"):
         val = component.get(field)
-        dt = to_datetime(val)
-        if dt:
-            return dt
-    return None
+        if not val:
+            continue
+        raw = val.dt if hasattr(val, "dt") else val
+        due_utc = to_datetime(val)
+        if not due_utc:
+            continue
+        if isinstance(raw, datetime):
+            local = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+            tzname = raw.tzname() or "UTC"
+            display = raw.strftime(f"%Y-%m-%d %H:%M {tzname}")
+            return due_utc, local, display, "datetime"
+        if hasattr(raw, "year") and hasattr(raw, "month") and hasattr(raw, "day"):
+            local = datetime(raw.year, raw.month, raw.day, tzinfo=timezone.utc)
+            display = f"{raw} (todo el día)"
+            return due_utc, local, display, "date"
+    return None, None, None, None
 
 
 def get_course(component) -> str:
@@ -94,19 +102,7 @@ def get_course(component) -> str:
     return "N/A"
 
 
-def format_due(component, due_utc: datetime) -> str:
-    # Prefer original timezone for display if available
-    for field in ("DUE", "DTEND", "DTSTART"):
-        val = component.get(field)
-        if not val:
-            continue
-        dt = val.dt if hasattr(val, "dt") else val
-        if isinstance(dt, datetime):
-            tzname = dt.tzname() or "UTC"
-            return dt.strftime(f"%Y-%m-%d %H:%M {tzname}")
-        if hasattr(dt, "year"):
-            return f"{dt} (todo el día)"
-    return due_utc.strftime("%Y-%m-%d %H:%M UTC")
+# format_due ya no es necesario; se usa display desde get_due_info
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -142,50 +138,58 @@ def main() -> int:
         if component.name != "VEVENT":
             continue
         events_seen += 1
-        due = get_due(component)
-        if not due or due <= now:
+        due_utc, due_local, due_text, kind = get_due_info(component)
+        if not due_utc or due_utc <= now:
             continue
 
         upcoming += 1
         uid = str(component.get("UID") or "").strip()
         if not uid:
             summary = str(component.get("SUMMARY") or "evento").strip()
-            uid = f"no-uid::{summary}::{due.isoformat()}"
+            uid = f"no-uid::{summary}::{due_utc.isoformat()}"
 
-        minutes_left = (due - now).total_seconds() / 60.0
         summary = str(component.get("SUMMARY") or "(Sin título)").strip()
         course = get_course(component)
-        due_text = format_due(component, due)
 
-        matched_window = False
-        for label, (low, high) in WINDOWS.items():
-            if not (low <= minutes_left <= high):
-                continue
-            matched_window = True
-            key = f"{uid}|{due.isoformat()}|{label}"
-            if key in sent:
-                h, m = divmod(int(minutes_left), 60)
-                print(f"Ya enviado ({label}): '{summary}' vence en {h}h {m}m")
-                continue
-            label_text = "24 horas" if label == "24h" else "3 horas"
+        tz = due_local.tzinfo or timezone.utc
+        now_local = now.astimezone(tz)
+        today = now_local.date()
+        due_day = due_local.date()
+
+        if due_day == today:
+            label = "hoy"
+            hora = due_local.strftime("%H:%M") if kind == "datetime" else "todo el día"
             msg = (
-                f"⏰ Recordatorio: vence en ~{label_text}\n"
+                f"⏰ Recordatorio\n"
                 f"Tarea: {summary}\n"
                 f"Materia: {course}\n"
-                f"Entrega: {due_text}"
+                f"Esta tarea vence hoy a las {hora}."
             )
-            try:
-                send_telegram(token, chat_id, msg)
-                print(f"Aviso enviado ({label}): {summary}")
-                sent.add(key)
-                changed = True
-                sent_count += 1
-            except Exception as e:
-                print(f"Error enviando aviso para '{summary}': {e}", file=sys.stderr)
+        elif due_day == today + timedelta(days=1):
+            label = "manana"
+            msg = (
+                f"⏰ Recordatorio\n"
+                f"Tarea: {summary}\n"
+                f"Materia: {course}\n"
+                f"Esta tarea: {summary}, vence mañana."
+            )
+        else:
+            days_left = (due_day - today).days
+            print(f"Sin aviso: '{summary}' vence en {days_left} día(s) ({due_text})")
+            continue
 
-        if not matched_window:
-            h, m = divmod(int(minutes_left), 60)
-            print(f"Sin ventana: '{summary}' vence en {h}h {m}m")
+        key = f"{uid}|{due_utc.isoformat()}|{label}"
+        if key in sent:
+            print(f"Ya enviado ({label}): '{summary}'")
+            continue
+        try:
+            send_telegram(token, chat_id, msg)
+            print(f"Aviso enviado ({label}): {summary}")
+            sent.add(key)
+            changed = True
+            sent_count += 1
+        except Exception as e:
+            print(f"Error enviando aviso para '{summary}': {e}", file=sys.stderr)
 
     if changed:
         save_sent(sent)
