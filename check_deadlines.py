@@ -1,5 +1,6 @@
 ﻿import json
 import os
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -77,29 +78,62 @@ def get_due_info(component):
     return None, None, None, None
 
 
+def normalize_course(text: str) -> str:
+    t = " ".join(str(text).split()).strip()
+    if not t:
+        return "N/A"
+    mappings = {
+        "ING-003": "ingles7-9",
+    }
+    for code, name in mappings.items():
+        if re.search(rf"\b{re.escape(code)}\b", t, re.IGNORECASE):
+            return name
+    if "/" in t:
+        parts = [p.strip() for p in t.split("/") if p.strip()]
+        if parts:
+            t = parts[-1]
+    if " - " in t:
+        parts = [p.strip() for p in t.split(" - ") if p.strip()]
+        for p in reversed(parts):
+            if re.search(r"[A-Za-zÁÉÍÓÚáéíóúñÑ]{3,}", p) and not re.fullmatch(r"[A-Z]{2,}-?\d[\w-]*", p):
+                t = p
+                break
+        else:
+            t = parts[-1]
+    t = re.sub(r"\s*\([^)]*\)\s*$", "", t).strip() or t
+    return t
+
+
 def get_course(component) -> str:
+    raw = None
     cats = component.get("CATEGORIES")
     if cats:
         items = cats.cats if hasattr(cats, "cats") else cats
         if isinstance(items, (list, tuple)):
-            text = ", ".join(str(x) for x in items if x)
-            if text.strip():
-                return text.strip()
-        text = str(items).strip()
-        if text:
-            return text
-    desc = component.get("DESCRIPTION")
-    if desc:
-        d = str(desc)
-        for line in d.replace("\\n", "\n").splitlines():
-            low = line.lower()
-            for prefix in ("course:", "curso:", "materia:", "asignatura:"):
-                if low.startswith(prefix):
-                    return line.split(":", 1)[1].strip() or "N/A"
-    loc = component.get("LOCATION")
-    if loc and str(loc).strip():
-        return str(loc).strip()
-    return "N/A"
+            texts = [str(x).strip() for x in items if str(x).strip()]
+            raw = ", ".join(texts) if texts else None
+        else:
+            text = str(items).strip()
+            raw = text or None
+    if not raw:
+        desc = component.get("DESCRIPTION")
+        if desc:
+            d = str(desc)
+            for line in d.replace("\\n", "\n").splitlines():
+                low = line.lower()
+                for prefix in ("course:", "curso:", "materia:", "asignatura:"):
+                    if low.startswith(prefix):
+                        raw = line.split(":", 1)[1].strip() or None
+                        break
+                if raw:
+                    break
+    if not raw:
+        loc = component.get("LOCATION")
+        if loc and str(loc).strip():
+            raw = str(loc).strip()
+    if not raw:
+        return "N/A"
+    return normalize_course(raw)
 
 
 # format_due ya no es necesario; se usa display desde get_due_info
