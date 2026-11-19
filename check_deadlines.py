@@ -134,14 +134,19 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     sent = load_sent()
     changed = False
+    events_seen = 0
+    upcoming = 0
+    sent_count = 0
 
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
+        events_seen += 1
         due = get_due(component)
         if not due or due <= now:
             continue
 
+        upcoming += 1
         uid = str(component.get("UID") or "").strip()
         if not uid:
             summary = str(component.get("SUMMARY") or "evento").strip()
@@ -152,11 +157,15 @@ def main() -> int:
         course = get_course(component)
         due_text = format_due(component, due)
 
+        matched_window = False
         for label, (low, high) in WINDOWS.items():
             if not (low <= minutes_left <= high):
                 continue
+            matched_window = True
             key = f"{uid}|{due.isoformat()}|{label}"
             if key in sent:
+                h, m = divmod(int(minutes_left), 60)
+                print(f"Ya enviado ({label}): '{summary}' vence en {h}h {m}m")
                 continue
             label_text = "24 horas" if label == "24h" else "3 horas"
             msg = (
@@ -170,8 +179,13 @@ def main() -> int:
                 print(f"Aviso enviado ({label}): {summary}")
                 sent.add(key)
                 changed = True
+                sent_count += 1
             except Exception as e:
                 print(f"Error enviando aviso para '{summary}': {e}", file=sys.stderr)
+
+        if not matched_window:
+            h, m = divmod(int(minutes_left), 60)
+            print(f"Sin ventana: '{summary}' vence en {h}h {m}m")
 
     if changed:
         save_sent(sent)
@@ -179,6 +193,10 @@ def main() -> int:
         # ensure file exists for workflow consistency
         if not SENT_FILE.exists():
             save_sent(sent)
+
+    print(
+        f"Resumen: eventos={events_seen}, próximos={upcoming}, avisos_enviados={sent_count}"
+    )
     return 0
 
 
