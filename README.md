@@ -1,6 +1,9 @@
 ﻿# Avisos de tareas del aula por Telegram (Moodle)
 
-Descarga un calendario `.ics` (Moodle), detecta tareas que vencen en ~24 h y ~3 h y envía un aviso por Telegram mediante GitHub Actions cada 30 minutos. Guarda los avisos enviados en `sent.json` para no repetirlos.
+Descarga un calendario `.ics` (Moodle) y envía avisos por Telegram mediante GitHub Actions cada 30 minutos:
+- **Vencimientos:** recordatorio si una tarea vence **hoy** (con hora en formato 12 h AM/PM) o **mañana**.
+- **Cambios en tareas (discreto):** avisa cuando se detecta una **tarea nueva** o cuando se **edita la fecha de entrega** (mensaje tipo: “tarea nueva en X materia, tienes del X hasta el X para entregarla”).
+Guarda el estado en `sent.json` para no repetir avisos.
 
 ## Requisitos
 - Repositorio **privado** en GitHub.
@@ -12,7 +15,7 @@ Descarga un calendario `.ics` (Moodle), detecta tareas que vencen en ~24 h y ~3 
 ## Archivos
 - `check_deadlines.py`: lógica principal.
 - `requirements.txt`: dependencias (`icalendar`, `requests`).
-- `sent.json`: registro de avisos ya enviados (se actualiza por el workflow).
+- `sent.json`: estado de avisos enviados y tareas conocidas (se actualiza por el workflow).
 - `.github/workflows/check_deadlines.yml`: ejecución cada 30 min y manual.
 
 ## Ejecución
@@ -22,3 +25,5 @@ Descarga un calendario `.ics` (Moodle), detecta tareas que vencen en ~24 h y ~3 
 ## Notas
 - Los secretos se leen solo de variables de entorno; no se escriben en el código.
 - El workflow hace commit de `sent.json` cuando hay cambios para conservar el estado entre ejecuciones.
+- No se avisa de tareas marcadas como completadas/entregadas cuando esa información viene en el `.ics`; si Moodle no la incluye, no es detectable automáticamente.
+- En la primera ejecución tras actualizar a esta versión se registra el estado actual de las tareas sin enviar avisos masivos de “tarea nueva”.

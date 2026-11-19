@@ -19,67 +19,97 @@ def env(name: str) -> str:
     return value
 
 
-def load_sent() -> set[str]:
+def load_state():
     if not SENT_FILE.exists():
-        return set()
+        return {"reminders": set(), "events": {}, "notify_new": False}
     try:
         data = json.loads(SENT_FILE.read_text(encoding="utf-8"))
         if isinstance(data, list):
-            return set(data)
+            # formato antiguo: conservar recordatorios y sembrar eventos sin avisar
+            return {"reminders": set(data), "events": {}, "notify_new": False}
         if isinstance(data, dict):
-            return set(data.keys())
+            reminders = data.get("reminders", [])
+            if isinstance(reminders, dict):
+                reminders = list(reminders.keys())
+            if not isinstance(reminders, list):
+                reminders = []
+            events = data.get("events", {})
+            if not isinstance(events, dict):
+                events = {}
+            notify_new = "events" in data
+            return {"reminders": set(reminders), "events": events, "notify_new": notify_new}
     except Exception:
-        return set()
-    return set()
+        pass
+    return {"reminders": set(), "events": {}, "notify_new": False}
 
 
-def save_sent(sent: set[str]) -> None:
+def save_state(reminders: set[str], events: dict) -> None:
+    state = {
+        "reminders": sorted(reminders),
+        "events": events,
+    }
     SENT_FILE.write_text(
-        json.dumps(sorted(sent), ensure_ascii=False, indent=2) + "\n",
+        json.dumps(state, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
 
 
-def to_datetime(value) -> datetime | None:
+def to_datetime(value):
     if value is None:
-        return None
+        return None, None
     dt = value.dt if hasattr(value, "dt") else value
     if isinstance(dt, datetime):
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc)
-    # date (all-day): treat as end of day UTC for comparison
+        local = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return local.astimezone(timezone.utc), local
+    # date (all-day)
     if hasattr(dt, "year") and hasattr(dt, "month") and hasattr(dt, "day"):
         try:
-            return datetime(dt.year, dt.month, dt.day, 23, 59, 59, tzinfo=timezone.utc)
+            utc = datetime(dt.year, dt.month, dt.day, 23, 59, 59, tzinfo=timezone.utc)
+            local = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+            return utc, local
         except Exception:
-            return None
-    return None
+            return None, None
+    return None, None
 
 
-def format_time_12h(dt: datetime) -> str:
-    return dt.strftime("%I:%M %p").lstrip("0")
+def fmt_12h(dt: datetime) -> str:
+    h = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return f"{h}:{dt.minute:02d} {ampm}"
 
 
-def get_due_info(component):
+def fmt_dt(local, kind: str) -> str:
+    if kind == "date":
+        return f"{local.day:02d}/{local.month:02d}/{local.year} (todo el día)"
+    return f"{local.day:02d}/{local.month:02d}/{local.year} {fmt_12h(local)}"
+
+
+def get_start_info(component):
+    val = component.get("DTSTART")
+    if not val:
+        val = component.get("DTSTAMP")
+    if not val:
+        return None, None, "date"
+    utc, local = to_datetime(val)
+    if not utc or not local:
+        return None, None, "date"
+    raw = val.dt if hasattr(val, "dt") else val
+    kind = "datetime" if isinstance(raw, datetime) else "date"
+    return utc, local, kind
+
+
+def get_end_info(component):
     for field in ("DUE", "DTEND", "DTSTART"):
         val = component.get(field)
         if not val:
             continue
-        raw = val.dt if hasattr(val, "dt") else val
-        due_utc = to_datetime(val)
-        if not due_utc:
+        utc, local = to_datetime(val)
+        if not utc or not local:
             continue
-        if isinstance(raw, datetime):
-            local = raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
-            tzname = raw.tzname() or "UTC"
-            display = f"{raw.strftime('%Y-%m-%d')} {format_time_12h(raw)} {tzname}"
-            return due_utc, local, display, "datetime"
-        if hasattr(raw, "year") and hasattr(raw, "month") and hasattr(raw, "day"):
-            local = datetime(raw.year, raw.month, raw.day, tzinfo=timezone.utc)
-            display = f"{raw} (todo el día)"
-            return due_utc, local, display, "date"
-    return None, None, None, None
+        raw = val.dt if hasattr(val, "dt") else val
+        kind = "datetime" if isinstance(raw, datetime) else "date"
+        return utc, local, kind
+    return None, None, "date"
 
 
 def normalize_course(text: str) -> str:
@@ -144,37 +174,32 @@ def is_completed(component) -> bool:
     status = str(component.get("STATUS") or "").strip().upper()
     if status in {"CANCELLED", "COMPLETED"}:
         return True
-    if component.get("COMPLETED") or component.get("PERCENT-COMPLETE") is not None:
-        pc = component.get("PERCENT-COMPLETE")
-        if component.get("COMPLETED"):
-            return True
+    if component.get("COMPLETED"):
+        return True
+    pc = component.get("PERCENT-COMPLETE")
+    if pc is not None:
         try:
-            if pc is not None and int(str(pc)) >= 100:
+            if int(str(pc)) >= 100:
                 return True
         except Exception:
             pass
     summary = str(component.get("SUMMARY") or "")
     description = str(component.get("DESCRIPTION") or "")
     text = f"{summary} {description}".lower()
-    # evitar falsos positivos como "debería ser completado"
     if re.search(r"\b(deber[ií]a|should be)\b", text):
-        pass
-    else:
-        patterns = [
-            r"\by[ao] entregad[oa]\b",
-            r"\bentregado\b",
-            r"\bentregada\b",
-            r"\bsubmitted\b",
-            r"\bcompleted\b",
-            r"\bcompletado\b",
-            r"\bcompletada\b",
-            r"\bfinalizado\b",
-            r"\bfinalizada\b",
-        ]
-        for p in patterns:
-            if re.search(p, text):
-                return True
-    return False
+        return False
+    patterns = [
+        r"\by[ao] entregad[oa]\b",
+        r"\bentregado\b",
+        r"\bentregada\b",
+        r"\bsubmitted\b",
+        r"\bcompleted\b",
+        r"\bcompletado\b",
+        r"\bcompletada\b",
+        r"\bfinalizado\b",
+        r"\bfinalizada\b",
+    ]
+    return any(re.search(p, text) for p in patterns)
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -199,8 +224,12 @@ def main() -> int:
     resp.raise_for_status()
     cal = Calendar.from_ical(resp.content)
 
+    state = load_state()
+    reminders = state["reminders"]
+    known_events = state["events"]
+    notify_new = state["notify_new"]
+
     now = datetime.now(timezone.utc)
-    sent = load_sent()
     changed = False
     events_seen = 0
     upcoming = 0
@@ -210,31 +239,67 @@ def main() -> int:
         if component.name != "VEVENT":
             continue
         events_seen += 1
-        due_utc, due_local, due_text, kind = get_due_info(component)
-        if not due_utc or due_utc <= now:
+
+        end_utc, end_local, end_kind = get_end_info(component)
+        if not end_utc or end_utc <= now:
             continue
 
         upcoming += 1
         summary = str(component.get("SUMMARY") or "(Sin título)").strip()
+        course = get_course(component)
+        uid = str(component.get("UID") or "").strip() or f"no-uid::{summary}::{end_utc.isoformat()}"
 
-        if is_completed(component):
+        start_utc, start_local, start_kind = get_start_info(component)
+        if not start_local:
+            start_local, start_kind = end_local, end_kind
+        if not start_utc:
+            start_utc = end_utc
+
+        start_text = fmt_dt(start_local, start_kind)
+        end_text = fmt_dt(end_local, end_kind)
+
+        completed = is_completed(component)
+
+        # Avisos discretos: tarea nueva o cambio de fecha de entrega
+        prev = known_events.get(uid)
+        current_fp = {"start": start_utc.isoformat(), "due": end_utc.isoformat()}
+        if prev is None:
+            if notify_new and not completed:
+                msg = f"ℹ️ Tarea nueva en {course}: {summary}. Tienes del {start_text} hasta el {end_text} para entregarla."
+                try:
+                    send_telegram(token, chat_id, msg)
+                    print(f"Aviso nueva tarea: {summary}")
+                    sent_count += 1
+                except Exception as e:
+                    print(f"Error enviando aviso de nueva tarea '{summary}': {e}", file=sys.stderr)
+        else:
+            prev_due = prev.get("due")
+            if prev_due != current_fp["due"]:
+                if notify_new and not completed:
+                    msg = f"ℹ️ Fecha actualizada en {course}: {summary}. Ahora tienes del {start_text} hasta el {end_text} para entregarla."
+                    try:
+                        send_telegram(token, chat_id, msg)
+                        print(f"Aviso cambio de fecha: {summary}")
+                        sent_count += 1
+                    except Exception as e:
+                        print(f"Error enviando aviso de cambio '{summary}': {e}", file=sys.stderr)
+        if known_events.get(uid) != current_fp:
+            known_events[uid] = current_fp
+            changed = True
+
+        # Avisos de vencimiento (hoy/mañana)
+        if completed:
             print(f"Omitido (entregado/completado): '{summary}'")
             continue
 
-        uid = str(component.get("UID") or "").strip()
-        if not uid:
-            uid = f"no-uid::{summary}::{due_utc.isoformat()}"
-
-        course = get_course(component)
-
-        tz = due_local.tzinfo or timezone.utc
+        tz = end_local.tzinfo or timezone.utc
         now_local = now.astimezone(tz)
         today = now_local.date()
-        due_day = due_local.date()
+        due_day = end_local.date()
 
         if due_day == today:
             label = "hoy"
-            hora = format_time_12h(due_local) if kind == "datetime" else "todo el día"
+            hora = fmt_12h(end_local) if end_kind == "datetime" else "todo el día"
             msg = (
                 f"⏰ Recordatorio\n"
                 f"Tarea: {summary}\n"
@@ -251,28 +316,24 @@ def main() -> int:
             )
         else:
             days_left = (due_day - today).days
-            print(f"Sin aviso: '{summary}' vence en {days_left} día(s) ({due_text})")
+            print(f"Sin aviso de vencimiento: '{summary}' vence en {days_left} día(s) ({end_text})")
             continue
 
-        key = f"{uid}|{due_utc.isoformat()}|{label}"
+        key = f"{uid}|{end_utc.isoformat()}|{label}"
         if key in sent:
             print(f"Ya enviado ({label}): '{summary}'")
             continue
         try:
             send_telegram(token, chat_id, msg)
             print(f"Aviso enviado ({label}): {summary}")
-            sent.add(key)
+            reminders.add(key)
             changed = True
             sent_count += 1
         except Exception as e:
             print(f"Error enviando aviso para '{summary}': {e}", file=sys.stderr)
 
-    if changed:
-        save_sent(sent)
-    else:
-        # ensure file exists for workflow consistency
-        if not SENT_FILE.exists():
-            save_sent(sent)
+    # Guardar estado (migración/baseline incluido)
+    save_state(reminders, known_events)
 
     print(
         f"Resumen: eventos={events_seen}, próximos={upcoming}, avisos_enviados={sent_count}"
