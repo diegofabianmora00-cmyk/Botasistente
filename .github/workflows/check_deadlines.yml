@@ -51,7 +51,7 @@ jobs:
           git commit -m "chore: actualizar avisos enviados [skip ci]"
           n=0
           until [ $n -ge 3 ]; do
-            if git pull --rebase origin main && git push origin HEAD:main; then
+            if git pull --rebase -X theirs origin main && git push origin HEAD:main; then
               exit 0
             fi
             n=$((n+1))
