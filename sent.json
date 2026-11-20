@@ -1,9 +1,49 @@
-[
-  "103860@aulavirtual.itla.edu.do|2026-11-20T03:43:00+00:00|manana",
-  "103861@aulavirtual.itla.edu.do|2026-11-20T02:19:00+00:00|manana",
-  "136248@aulavirtual.itla.edu.do|2026-11-19T20:32:00+00:00|hoy",
-  "136249@aulavirtual.itla.edu.do|2026-11-19T22:03:00+00:00|hoy",
-  "136249@aulavirtual.itla.edu.do|2026-11-19T23:03:00+00:00|hoy",
-  "136250@aulavirtual.itla.edu.do|2026-11-19T22:06:00+00:00|hoy",
-  "136251@aulavirtual.itla.edu.do|2026-11-20T00:07:00+00:00|manana"
-]
+{
+  "reminders": [
+    "103860@aulavirtual.itla.edu.do|2026-11-20T03:43:00+00:00|manana",
+    "103861@aulavirtual.itla.edu.do|2026-11-20T02:19:00+00:00|manana",
+    "136248@aulavirtual.itla.edu.do|2026-11-19T20:32:00+00:00|hoy",
+    "136249@aulavirtual.itla.edu.do|2026-11-19T22:03:00+00:00|hoy",
+    "136249@aulavirtual.itla.edu.do|2026-11-19T23:03:00+00:00|hoy",
+    "136250@aulavirtual.itla.edu.do|2026-11-19T22:06:00+00:00|hoy",
+    "136251@aulavirtual.itla.edu.do|2026-11-20T00:07:00+00:00|manana"
+  ],
+  "events": {
+    "117216@aulavirtual.itla.edu.do": {
+      "start": "2026-11-23T21:00:00+00:00",
+      "due": "2026-11-23T21:00:00+00:00"
+    },
+    "111086@aulavirtual.itla.edu.do": {
+      "start": "2026-11-24T03:55:00+00:00",
+      "due": "2026-11-24T03:55:00+00:00"
+    },
+    "135798@aulavirtual.itla.edu.do": {
+      "start": "2026-11-24T03:55:00+00:00",
+      "due": "2026-11-24T03:55:00+00:00"
+    },
+    "135853@aulavirtual.itla.edu.do": {
+      "start": "2026-11-26T19:00:00+00:00",
+      "due": "2026-11-26T19:00:00+00:00"
+    },
+    "136114@aulavirtual.itla.edu.do": {
+      "start": "2026-11-29T03:59:00+00:00",
+      "due": "2026-11-29T03:59:00+00:00"
+    },
+    "136115@aulavirtual.itla.edu.do": {
+      "start": "2026-11-29T03:59:00+00:00",
+      "due": "2026-11-29T03:59:00+00:00"
+    },
+    "135850@aulavirtual.itla.edu.do": {
+      "start": "2026-12-03T19:00:00+00:00",
+      "due": "2026-12-03T19:00:00+00:00"
+    },
+    "135840@aulavirtual.itla.edu.do": {
+      "start": "2026-12-10T18:19:00+00:00",
+      "due": "2026-12-10T18:19:00+00:00"
+    },
+    "135838@aulavirtual.itla.edu.do": {
+      "start": "2026-12-10T20:00:00+00:00",
+      "due": "2026-12-10T20:00:00+00:00"
+    }
+  }
+}
