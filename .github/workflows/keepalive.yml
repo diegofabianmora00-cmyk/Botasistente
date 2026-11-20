@@ -14,9 +14,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
       - name: Ping actividad
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit --allow-empty -m "chore: keepalive [skip ci]" || exit 0
-          git push
+          n=0
+          until [ $n -ge 3 ]; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              exit 0
+            fi
+            n=$((n+1))
+            git rebase --abort 2>/dev/null || true
+            sleep 2
+          done
+          echo "No se pudo hacer push keepalive"
+          exit 1
