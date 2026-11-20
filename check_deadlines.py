@@ -320,7 +320,7 @@ def main() -> int:
             continue
 
         key = f"{uid}|{end_utc.isoformat()}|{label}"
-        if key in sent:
+        if key in reminders:
             print(f"Ya enviado ({label}): '{summary}'")
             continue
         try:
