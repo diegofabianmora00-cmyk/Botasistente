@@ -10,12 +10,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: check-deadlines
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -41,5 +47,6 @@ jobs:
             echo "Sin cambios en sent.json"
           else
             git commit -m "chore: actualizar avisos enviados [skip ci]"
-            git push
+            git pull --rebase origin main || true
+            git push origin HEAD:main
           fi
