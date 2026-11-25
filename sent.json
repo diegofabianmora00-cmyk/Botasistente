@@ -17,6 +17,7 @@
     "136250@aulavirtual.itla.edu.do|2026-11-19T22:06:00+00:00|hoy",
     "136251@aulavirtual.itla.edu.do|2026-11-20T00:07:00+00:00|manana",
     "136320@aulavirtual.itla.edu.do|2026-11-21T00:42:00+00:00|manana",
+    "136723@aulavirtual.itla.edu.do|2026-11-26T03:55:00+00:00|manana",
     "99688@aulavirtual.itla.edu.do|2026-11-25T13:53:00+00:00|hoy",
     "99688@aulavirtual.itla.edu.do|2026-11-25T13:53:00+00:00|manana"
   ],
@@ -84,6 +85,10 @@
     "136729@aulavirtual.itla.edu.do": {
       "start": "2026-12-03T13:27:00+00:00",
       "due": "2026-12-03T13:27:00+00:00"
+    },
+    "99695@aulavirtual.itla.edu.do": {
+      "start": "2026-12-04T04:00:00+00:00",
+      "due": "2026-12-04T04:00:00+00:00"
     }
   }
 }
