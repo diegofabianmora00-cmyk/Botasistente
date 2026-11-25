@@ -4,8 +4,10 @@
     "103861@aulavirtual.itla.edu.do|2026-11-20T02:19:00+00:00|manana",
     "111086@aulavirtual.itla.edu.do|2026-11-24T03:55:00+00:00|hoy",
     "111086@aulavirtual.itla.edu.do|2026-11-24T03:55:00+00:00|manana",
+    "111086@aulavirtual.itla.edu.do|2026-11-26T03:55:00+00:00|manana",
     "117216@aulavirtual.itla.edu.do|2026-11-23T21:00:00+00:00|hoy",
     "117216@aulavirtual.itla.edu.do|2026-11-23T21:00:00+00:00|manana",
+    "133927@aulavirtual.itla.edu.do|2026-11-26T02:05:00+00:00|manana",
     "135798@aulavirtual.itla.edu.do|2026-11-24T03:55:00+00:00|hoy",
     "135798@aulavirtual.itla.edu.do|2026-11-24T03:55:00+00:00|manana",
     "135853@aulavirtual.itla.edu.do|2026-11-26T19:00:00+00:00|manana",
@@ -24,8 +26,8 @@
       "due": "2026-11-23T21:00:00+00:00"
     },
     "111086@aulavirtual.itla.edu.do": {
-      "start": "2026-11-24T03:55:00+00:00",
-      "due": "2026-11-24T03:55:00+00:00"
+      "start": "2026-11-26T03:55:00+00:00",
+      "due": "2026-11-26T03:55:00+00:00"
     },
     "135798@aulavirtual.itla.edu.do": {
       "start": "2026-11-24T03:55:00+00:00",
@@ -70,6 +72,18 @@
     "99696@aulavirtual.itla.edu.do": {
       "start": "2026-12-03T03:59:00+00:00",
       "due": "2026-12-03T03:59:00+00:00"
+    },
+    "133927@aulavirtual.itla.edu.do": {
+      "start": "2026-11-26T02:05:00+00:00",
+      "due": "2026-11-26T02:05:00+00:00"
+    },
+    "136723@aulavirtual.itla.edu.do": {
+      "start": "2026-11-26T03:55:00+00:00",
+      "due": "2026-11-26T03:55:00+00:00"
+    },
+    "136729@aulavirtual.itla.edu.do": {
+      "start": "2026-12-03T13:27:00+00:00",
+      "due": "2026-12-03T13:27:00+00:00"
     }
   }
 }
